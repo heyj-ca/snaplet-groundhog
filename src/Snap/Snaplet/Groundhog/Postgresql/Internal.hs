@@ -49,14 +49,15 @@ data GHPGConfig = GHPGConfig
 
 class HasGroundhogPostgres m where
     getGroundhogPostgresState :: m GroundhogPostgres
+
 ------------------------------------------------------------------------------
 -- | Returns a config object with default values and the specified connection
 -- string.
-pgsDefaultConfig :: ByteString
+ghpgDefaultConfig :: ByteString
                    -- ^ A connection string such as \"host=localhost
                    -- port=5432 dbname=mydb\"
                  -> GHPGConfig
-pgsDefaultConfig connstr = GHPGConfig connstr 1 5 20
+ghpgDefaultConfig connstr = GHPGConfig connstr 1 5 20
 
 
 
