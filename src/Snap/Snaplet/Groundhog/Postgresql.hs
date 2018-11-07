@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, ViewPatterns,
-             PackageImports, ScopedTypeVariables, FlexibleContexts #-}
+             PackageImports, ScopedTypeVariables, RecordWildCards, FlexibleContexts #-}
 
 module Snap.Snaplet.Groundhog.Postgresql
         ( initGroundhogPostgres
@@ -40,6 +40,7 @@ module Snap.Snaplet.Groundhog.Postgresql
 
 import           Prelude hiding ((++))
 import           Control.Applicative
+import           Control.Monad (liftM)
 import           Control.Monad.Logger
 import           Control.Monad.IO.Class
 import           Snap hiding (get)
@@ -59,14 +60,12 @@ import qualified Data.Text.Lazy.Builder.RealFloat as TB
 import           Database.Groundhog
 import           Database.Groundhog.Postgresql
 import           Database.Groundhog.Core
+import           Paths_snaplet_groundhog
+import           Snap.Snaplet.Groundhog.Postgresql.Internal
 
 (++) :: Monoid a => a -> a -> a
 (++) = mappend
 infixr 5 ++
-
-data GroundhogPostgres = GroundhogPostgres
-      { pgPool :: Pool Postgresql
-      }
 
 -- Taken from snaplet-postgresql-simple
 getConnectionString :: C.Config -> IO ByteString
@@ -146,20 +145,29 @@ getConnectionString config = do
                      '\\' -> bs ++ bs
                      _ -> TB.singleton c
 
-class HasGroundhogPostgres m where
-    getGroundhogPostgresState :: m GroundhogPostgres
-
 description :: T.Text
 description = "PostgreSQL abstraction using Groundhog"
 
+datadir :: Maybe (IO FilePath)
+datadir = Just $ liftM (<>"/resources/db") getDataDir
 
 initGroundhogPostgres :: SnapletInit b GroundhogPostgres
-initGroundhogPostgres = makeSnaplet "groundhog-postgresql" description Nothing $ do
-    config <- getSnapletUserConfig
-    connstr <- liftIO $ getConnectionString config
-    pool <- createPostgresqlPool (B8.unpack connstr) 5
-    return $ GroundhogPostgres pool
+initGroundhogPostgres = makeSnaplet "groundhog-postgresql" description datadir $ do
+    config <- mkGHPGConfig =<< getSnapletUserConfig
+    initHelper config
 
+mkGHPGConfig :: MonadIO m => C.Config -> m GHPGConfig
+mkGHPGConfig config = liftIO $ do
+  connstr <- getConnectionString config
+  stripes <- C.lookupDefault 1 config "numStripes"
+  idle <- C.lookupDefault 5 config "idleTime"
+  resources <- C.lookupDefault 20 config "maxResourcesPerStripe"
+  return $ GHPGConfig connstr stripes idle resources
+
+initHelper :: MonadIO m => GHPGConfig -> m GroundhogPostgres
+initHelper GHPGConfig{..} = do
+  pool <- liftIO $ createPostgresqlPool (B8.unpack ghpgConnStr) ghpgResources
+  return $ GroundhogPostgres pool
 
 runGH :: (MonadSnap m, HasGroundhogPostgres m)
             => Action Postgresql a
