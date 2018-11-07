@@ -17,6 +17,10 @@ Library
 
   exposed-modules:
     Snap.Snaplet.Groundhog.Postgresql
+ 
+  other-modules:
+    Snap.Snaplet.Groundhog.Postgresql.Internal
+    Paths_snaplet_groundhog
 
   build-depends:
     base                       >= 4       && < 4.12,
